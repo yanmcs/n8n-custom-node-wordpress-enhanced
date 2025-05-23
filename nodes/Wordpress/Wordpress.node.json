@@ -1,0 +1,5 @@
+{
+  "node": "n8n-nodes-base.wordpress",
+  "nodeIdentifier": "n8n-nodes-base.wordpress",
+  "icon": "file:wordpress.svg"
+}
