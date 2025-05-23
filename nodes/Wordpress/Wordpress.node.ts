@@ -1,12 +1,11 @@
 import type {
-	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
 	ICredentialData,
-	NodeOperationError,
+	IExecuteFunctions, // Added IExecuteFunctions
 } from 'n8n-workflow';
-import { NodeConnectionType } from 'n8n-workflow';
+import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 
 // Define an interface for the WordPress API credentials
 interface IWordpressApiCredentials extends ICredentialData {
@@ -229,11 +228,11 @@ export class Wordpress implements INodeType {
 				default: '',
 				displayOptions: {
 					show: {
-						resource: ['post'],
+						resource: ['post', 'customPostType'], // Apply to post and CPT
 						operation: ['create', 'update'],
 					},
 				},
-				description: 'The title of the post.',
+				description: 'The title of the item.',
 			},
 			// Content (for Create, Update)
 			{
@@ -246,11 +245,11 @@ export class Wordpress implements INodeType {
 				default: '',
 				displayOptions: {
 					show: {
-						resource: ['post'],
+						resource: ['post', 'customPostType'], // Apply to post and CPT
 						operation: ['create', 'update'],
 					},
 				},
-				description: 'The content of the post.',
+				description: 'The content of the item.',
 			},
 			// Status (for Create, Update)
 			{
@@ -267,11 +266,11 @@ export class Wordpress implements INodeType {
 				default: 'publish',
 				displayOptions: {
 					show: {
-						resource: ['post'],
+						resource: ['post', 'customPostType'], // Apply to post and CPT
 						operation: ['create', 'update'],
 					},
 				},
-				description: 'The status of the post.',
+				description: 'The status of the item.',
 			},
 			// Excerpt (for Create, Update)
 			{
@@ -284,13 +283,13 @@ export class Wordpress implements INodeType {
 				default: '',
 				displayOptions: {
 					show: {
-						resource: ['post'],
+						resource: ['post', 'customPostType'], // Apply to post and CPT
 						operation: ['create', 'update'],
 					},
 				},
-				description: 'The excerpt of the post.',
+				description: 'The excerpt of the item.',
 			},
-			// Categories (for Create, Update) - Comma-separated string of category IDs or names
+			// Categories (for Create, Update - Post only)
 			{
 				displayName: 'Categories',
 				name: 'categories',
@@ -305,7 +304,7 @@ export class Wordpress implements INodeType {
 				placeholder: 'e.g., News,Updates or 1,2',
 				description: 'Comma-separated list of category names or IDs. WordPress will create categories that do not exist if you use names.',
 			},
-			// Tags (for Create, Update) - Comma-separated string of tag IDs or names
+			// Tags (for Create, Update - Post only)
 			{
 				displayName: 'Tags',
 				name: 'tags',
@@ -320,7 +319,6 @@ export class Wordpress implements INodeType {
 				placeholder: 'e.g., Technology,Release or 3,4',
 				description: 'Comma-separated list of tag names or IDs. WordPress will create tags that do not exist if you use names.',
 			},
-			// TODO: Add fields for 'getAll' operation for Post (e.g., pagination, filtering by status, category, tag)
 
 			// Fields for Media resource operations
 			// Media ID (for Get, Update, Delete)
@@ -352,24 +350,14 @@ export class Wordpress implements INodeType {
 					},
 				},
 				typeOptions: {
-					fileBinary: true, // Corrected property name
+					fileBinary: true,
 				},
 				description: 'The file to upload. Select a binary property that contains the file data.',
 			},
-			// Title (for Upload, Update)
-			{
-				displayName: 'Title',
-				name: 'title',
-				type: 'string',
-				default: '',
-				displayOptions: {
-					show: {
-						resource: ['media'],
-						operation: ['upload', 'update'],
-					},
-				},
-				description: 'The title of the media item.',
-			},
+			// Title (for Media Upload, Update) - Note: 'title' field is already defined above, ensure displayOptions are merged or specific if needed
+			// For Media, title is not mandatory on create/upload but available for update.
+			// The generic 'title' field above will show for Media create/update. If specific behavior is needed, a new field with a different name or more specific displayOptions would be required.
+
 			// Alt Text (for Upload, Update)
 			{
 				displayName: 'Alt Text',
@@ -401,7 +389,7 @@ export class Wordpress implements INodeType {
 				},
 				description: 'The caption for the media item.',
 			},
-			// Description (for Upload, Update)
+			// Description (for Media Upload, Update)
 			{
 				displayName: 'Description',
 				name: 'description_media', // Using a different name to avoid conflict with node description
@@ -418,103 +406,18 @@ export class Wordpress implements INodeType {
 				},
 				description: 'The description of the media item.',
 			},
-			// TODO: Add fields for 'getAll' operation for Media (e.g., pagination, filtering by type)
 
 			// Fields for Custom Post Type resource operations
-			// These fields are very similar to the 'Post' resource fields.
 			// Post ID (for Get, Update, Delete - Custom Post Type)
-			{
-				displayName: 'Post ID',
-				name: 'postId', // Re-using postId, context given by resource selection
-				type: 'string',
-				default: '',
-				required: true,
-				displayOptions: {
-					show: {
-						resource: ['customPostType'],
-						operation: ['get', 'update', 'delete'],
-					},
-				},
-				description: 'The ID of the custom post type item.',
-			},
-			// Title (for Create, Update - Custom Post Type)
-			{
-				displayName: 'Title',
-				name: 'title', // Re-using title
-				type: 'string',
-				default: '',
-				displayOptions: {
-					show: {
-						resource: ['customPostType'],
-						operation: ['create', 'update'],
-					},
-				},
-				description: 'The title of the custom post type item.',
-			},
-			// Content (for Create, Update - Custom Post Type)
-			{
-				displayName: 'Content',
-				name: 'content', // Re-using content
-				type: 'string',
-				typeOptions: {
-					alwaysOpenEditWindow: true,
-				},
-				default: '',
-				displayOptions: {
-					show: {
-						resource: ['customPostType'],
-						operation: ['create', 'update'],
-					},
-				},
-				description: 'The content of the custom post type item.',
-			},
-			// Status (for Create, Update - Custom Post Type)
-			{
-				displayName: 'Status',
-				name: 'status', // Re-using status
-				type: 'options',
-				options: [
-					{ name: 'Publish', value: 'publish' },
-					{ name: 'Future', value: 'future' },
-					{ name: 'Draft', value: 'draft' },
-					{ name: 'Pending Review', value: 'pending' },
-					{ name: 'Private', value: 'private' },
-				],
-				default: 'publish',
-				displayOptions: {
-					show: {
-						resource: ['customPostType'],
-						operation: ['create', 'update'],
-					},
-				},
-				description: 'The status of the custom post type item.',
-			},
-			// Excerpt (for Create, Update - Custom Post Type)
-			{
-				displayName: 'Excerpt',
-				name: 'excerpt', // Re-using excerpt
-				type: 'string',
-				typeOptions: {
-					alwaysOpenEditWindow: true,
-				},
-				default: '',
-				displayOptions: {
-					show: {
-						resource: ['customPostType'],
-						operation: ['create', 'update'],
-					},
-				},
-				description: 'The excerpt of the custom post type item.',
-			},
+			// This reuses the 'postId' field defined for 'Post' resource.
+			// Title, Content, Status, Excerpt for CPT are also covered by the generic fields due to displayOptions.
+
 			// Custom Fields (for Create, Update - Custom Post Type)
 			{
 				displayName: 'Custom Fields',
 				name: 'customFields',
 				type: 'fixedCollection',
-				typeOptions: {
-					multipleValues: true,
-				},
-				default: {},
+				default: [],
 				placeholder: 'Add Custom Field',
 				displayOptions: {
 					show: {
@@ -522,229 +425,43 @@ export class Wordpress implements INodeType {
 						operation: ['create', 'update'],
 					},
 				},
-				properties: [
-					{
-						name: 'key',
-						displayName: 'Key',
-						type: 'string',
-						default: '',
-						description: 'Name of the custom field (meta key).',
-					},
-					{
-						name: 'value',
-						displayName: 'Value',
-						type: 'string',
-						default: '',
-						description: 'Value of the custom field (meta value).',
-					},
-				],
+				typeOptions: {
+					multipleValues: true,
+					properties: [ // Moved 'properties' under 'typeOptions'
+						{
+							name: 'key',
+							displayName: 'Key',
+							type: 'string',
+							default: '',
+							description: 'Name of the custom field (meta key).',
+						},
+						{
+							name: 'value',
+							displayName: 'Value',
+							type: 'string',
+							default: '',
+							description: 'Value of the custom field (meta value).',
+						},
+					],
+				},
 				description: 'Custom fields (metadata) for the custom post type item.',
 			},
-			// TODO: Add fields for 'getAll' operation for Custom Post Types (e.g., pagination, filtering)
 		],
 	};
 
 	// Centralized API request helper
-	private async wordpressApiRequest(
-		this: IExecuteFunctions,
+	private static async wordpressApiRequest(
+		execFuncs: IExecuteFunctions,
 		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
 		endpoint: string,
 		body: object = {},
-		// qs: object = {}, // Query string parameters
-		credentials?: IWordpressApiCredentials, // Make credentials optional as they might be passed directly
-	): Promise<any> {
-		credentials = credentials ?? await this.getCredentials('wordpressApi') as IWordpressApiCredentials;
-		const { url, username, password } = credentials;
-
-		if (!url) {
-			throw new NodeOperationError(this.getNode(), 'WordPress Site URL is not set in credentials!', { itemIndex: 0 });
-		}
-
-		const options: any = {
-			method,
-			baseURL: `${url.replace(/\/$/, '')}/wp-json/wp/v2`, // Ensure no trailing slash and add API base path
-			url: endpoint,
-			headers: {
-				'Accept': 'application/json',
-				'Content-Type': 'application/json',
-			},
-			// qs,
-			json: true, // Automatically stringifies the body to JSON
-		};
-
-		if (body && Object.keys(body).length > 0) {
-			options.body = body;
-		}
-
-		if (username && password) {
-			options.auth = {
-				user: username,
-				pass: password,
-			};
-			// WordPress Application Passwords are used in the password field with any username (or the actual username)
-			// Basic Auth using username and actual user password might require a plugin on WordPress side.
-			// This setup assumes Application Passwords or a correctly configured Basic Auth.
-			options.headers['Authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-		}
-
-
-		try {
-			return await this.helpers.httpRequest(options);
-		} catch (error) {
-			// Attempt to parse error response from WordPress if available
-			if (error.response && error.response.data && error.response.data.message) {
-				throw new NodeOperationError(this.getNode(), `WordPress API Error: ${error.response.data.message}`, { itemIndex: 0, cause: error });
-			}
-			throw new NodeOperationError(this.getNode(), error, { itemIndex: 0 });
-		}
-	}
-
-	// Handler for Custom Post Type -> Create
-	private async executeCustomPostTypeCreate(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const postTypeSlug = this.getNodeParameter('postTypeSlug', itemIndex, '') as string;
-		if (!postTypeSlug) {
-			throw new NodeOperationError(this.getNode(), 'Post Type Slug is required for Custom Post Type operations.', { itemIndex });
-		}
-
-		const title = this.getNodeParameter('title', itemIndex, '') as string;
-		const content = this.getNodeParameter('content', itemIndex, '') as string;
-		const status = this.getNodeParameter('status', itemIndex, 'publish') as string;
-		const excerpt = this.getNodeParameter('excerpt', itemIndex, '') as string;
-		const customFieldsData = this.getNodeParameter('customFields', itemIndex, { properties: [] }) as { properties: Array<{ key?: string; value?: string }> };
-
-		const body: any = {
-			title,
-			content,
-			status,
-		};
-		if (excerpt) body.excerpt = excerpt;
-
-		if (customFieldsData.properties && customFieldsData.properties.length > 0) {
-			body.meta = {};
-			for (const field of customFieldsData.properties) {
-				if (field.key) { // Ensure key is not empty or undefined
-					body.meta[field.key] = field.value ?? '';
-				}
-			}
-		}
-
-		try {
-			const response = await this.wordpressApiRequest('POST', `/${postTypeSlug.trim()}`, body);
-			return { json: response, pairedItem: { itemIndex } };
-		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
-			}
-			throw error;
-		}
-	}
-
-	// Handler for Custom Post Type -> Get
-	private async executeCustomPostTypeGet(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const postTypeSlug = this.getNodeParameter('postTypeSlug', itemIndex, '') as string;
-		if (!postTypeSlug) {
-			throw new NodeOperationError(this.getNode(), 'Post Type Slug is required.', { itemIndex });
-		}
-		const postId = this.getNodeParameter('postId', itemIndex, '') as string;
-		if (!postId) {
-			throw new NodeOperationError(this.getNode(), 'Post ID is required for Get operation.', { itemIndex });
-		}
-
-		try {
-			const response = await this.wordpressApiRequest('GET', `/${postTypeSlug.trim()}/${postId}`);
-			return { json: response, pairedItem: { itemIndex } };
-		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
-			}
-			throw error;
-		}
-	}
-
-	// Handler for Custom Post Type -> Update
-	private async executeCustomPostTypeUpdate(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const postTypeSlug = this.getNodeParameter('postTypeSlug', itemIndex, '') as string;
-		if (!postTypeSlug) {
-			throw new NodeOperationError(this.getNode(), 'Post Type Slug is required.', { itemIndex });
-		}
-		const postId = this.getNodeParameter('postId', itemIndex, '') as string;
-		if (!postId) {
-			throw new NodeOperationError(this.getNode(), 'Post ID is required for Update operation.', { itemIndex });
-		}
-
-		const body: any = {};
-		const title = this.getNodeParameter('title', itemIndex, null) as string | null;
-		const content = this.getNodeParameter('content', itemIndex, null) as string | null;
-		const status = this.getNodeParameter('status', itemIndex, null) as string | null;
-		const excerpt = this.getNodeParameter('excerpt', itemIndex, null) as string | null;
-		const customFieldsData = this.getNodeParameter('customFields', itemIndex, null) as { properties: Array<{ key?: string; value?: string }> } | null;
-
-
-		if (title !== null) body.title = title;
-		if (content !== null) body.content = content;
-		if (status !== null) body.status = status;
-		if (excerpt !== null) body.excerpt = excerpt;
-
-		if (customFieldsData && customFieldsData.properties && customFieldsData.properties.length > 0) {
-			body.meta = {};
-			for (const field of customFieldsData.properties) {
-				if (field.key) {
-					body.meta[field.key] = field.value ?? '';
-				}
-			}
-		}
-
-		if (Object.keys(body).length === 0) {
-			const currentItem = this.getInputData(itemIndex)[0].json;
-			return { json: { message: "No fields provided to update for custom post type.", item: currentItem }, pairedItem: { itemIndex } };
-		}
-
-		try {
-			const response = await this.wordpressApiRequest('POST', `/${postTypeSlug.trim()}/${postId}`, body);
-			return { json: response, pairedItem: { itemIndex } };
-		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
-			}
-			throw error;
-		}
-	}
-
-	// Handler for Custom Post Type -> Delete
-	private async executeCustomPostTypeDelete(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const postTypeSlug = this.getNodeParameter('postTypeSlug', itemIndex, '') as string;
-		if (!postTypeSlug) {
-			throw new NodeOperationError(this.getNode(), 'Post Type Slug is required.', { itemIndex });
-		}
-		const postId = this.getNodeParameter('postId', itemIndex, '') as string;
-		if (!postId) {
-			throw new NodeOperationError(this.getNode(), 'Post ID is required for Delete operation.', { itemIndex });
-		}
-
-		try {
-			await this.wordpressApiRequest('DELETE', `/${postTypeSlug.trim()}/${postId}?force=true`);
-			return { json: { message: `Custom Post Type item ${postId} (slug: ${postTypeSlug}) deleted permanently.` }, pairedItem: { itemIndex } };
-		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
-			}
-			throw error;
-		}
-	}
-
-	// API request helper for binary file uploads
-	private async wordpressApiRequestBinary(
-		this: IExecuteFunctions,
-		method: 'POST', // Typically POST for uploads
-		endpoint: string,
-		formData: Record<string, any>,
 		credentials?: IWordpressApiCredentials,
 	): Promise<any> {
-		credentials = credentials ?? await this.getCredentials('wordpressApi') as IWordpressApiCredentials;
+		credentials = credentials ?? await execFuncs.getCredentials('wordpressApi') as IWordpressApiCredentials;
 		const { url, username, password } = credentials;
 
 		if (!url) {
-			throw new NodeOperationError(this.getNode(), 'WordPress Site URL is not set in credentials!', { itemIndex: 0 });
+			throw new NodeOperationError(execFuncs.getNode(), 'WordPress Site URL is not set in credentials!');
 		}
 
 		const options: any = {
@@ -752,12 +469,55 @@ export class Wordpress implements INodeType {
 			baseURL: `${url.replace(/\/$/, '')}/wp-json/wp/v2`,
 			url: endpoint,
 			headers: {
-				// Content-Type will be set by httpRequest helper for FormData
+				'Accept': 'application/json',
+				'Content-Type': 'application/json',
 			},
-			body: formData, // Pass FormData directly
-			json: false, // Don't expect JSON response for all binary uploads initially, parse later if needed
-			encoding: 'arraybuffer', // Expect binary response
-			resolveWithFullResponse: true, // To get headers and status code
+			json: true,
+		};
+
+		if (body && Object.keys(body).length > 0) {
+			options.body = body;
+		}
+
+		if (username && password) {
+			options.auth = { user: username, pass: password };
+			options.headers['Authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+		}
+
+		try {
+			return await execFuncs.helpers.httpRequest(options);
+		} catch (error) {
+			if (error.response && error.response.data && error.response.data.message) {
+				throw new NodeOperationError(execFuncs.getNode(), `WordPress API Error: ${error.response.data.message}`);
+			}
+			throw new NodeOperationError(execFuncs.getNode(), error);
+		}
+	}
+
+	// API request helper for binary file uploads
+	private static async wordpressApiRequestBinary(
+		execFuncs: IExecuteFunctions,
+		method: 'POST',
+		endpoint: string,
+		formData: Record<string, any>,
+		credentials?: IWordpressApiCredentials,
+	): Promise<any> {
+		credentials = credentials ?? await execFuncs.getCredentials('wordpressApi') as IWordpressApiCredentials;
+		const { url, username, password } = credentials;
+
+		if (!url) {
+			throw new NodeOperationError(execFuncs.getNode(), 'WordPress Site URL is not set in credentials!');
+		}
+
+		const options: any = {
+			method,
+			baseURL: `${url.replace(/\/$/, '')}/wp-json/wp/v2`,
+			url: endpoint,
+			headers: {},
+			body: formData,
+			json: false,
+			encoding: 'arraybuffer',
+			resolveWithFullResponse: true,
 		};
 
 		if (username && password) {
@@ -765,47 +525,164 @@ export class Wordpress implements INodeType {
 		}
 
 		try {
-			const response = await this.helpers.httpRequest(options);
-			// WordPress often returns JSON even for media uploads, attempt to parse it
+			const response = await execFuncs.helpers.httpRequest(options);
 			try {
 				return JSON.parse(Buffer.from(response.body).toString());
 			} catch (parseError) {
-				// If parsing fails, it might be a non-JSON response or an error
 				if (response.statusCode >= 400) {
-					throw new NodeOperationError(this.getNode(), `WordPress API Error: ${response.statusCode} - ${Buffer.from(response.body).toString()}`, { itemIndex: 0 });
+					throw new NodeOperationError(execFuncs.getNode(), `WordPress API Error: ${response.statusCode} - ${Buffer.from(response.body).toString()}`);
 				}
-				return response.body; // Or handle as needed
+				return response.body;
 			}
 		} catch (error) {
 			if (error.response && error.response.data && error.response.data.message) {
-				throw new NodeOperationError(this.getNode(), `WordPress API Error: ${error.response.data.message}`, { itemIndex: 0, cause: error });
+				throw new NodeOperationError(execFuncs.getNode(), `WordPress API Error: ${error.response.data.message}`);
 			}
-			throw new NodeOperationError(this.getNode(), error, { itemIndex: 0 });
+			throw new NodeOperationError(execFuncs.getNode(), error);
+		}
+	}
+
+	// Handler for Custom Post Type -> Create
+	private static async executeCustomPostTypeCreate(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const postTypeSlug = execFuncs.getNodeParameter('postTypeSlug', itemIndex, '') as string;
+		if (!postTypeSlug) {
+			throw new NodeOperationError(execFuncs.getNode(), 'Post Type Slug is required for Custom Post Type operations.', { itemIndex }); // Keep itemIndex here
+		}
+
+		const title = execFuncs.getNodeParameter('title', itemIndex, '') as string;
+		const content = execFuncs.getNodeParameter('content', itemIndex, '') as string;
+		const status = execFuncs.getNodeParameter('status', itemIndex, 'publish') as string;
+		const excerpt = execFuncs.getNodeParameter('excerpt', itemIndex, '') as string;
+		const customFieldsData = execFuncs.getNodeParameter('customFields', itemIndex, []) as Array<{ key?: string; value?: string }>;
+
+
+		const body: any = { title, content, status };
+		if (excerpt) body.excerpt = excerpt;
+
+		if (customFieldsData && customFieldsData.length > 0) {
+			body.meta = {};
+			for (const field of customFieldsData) {
+				if (field.key) {
+					body.meta[field.key] = field.value ?? '';
+				}
+			}
+		}
+
+		try {
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'POST', `/${postTypeSlug.trim()}`, body);
+			return { json: response, pairedItem: itemIndex };
+		} catch (error) {
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
+			}
+			throw error;
+		}
+	}
+
+	// Handler for Custom Post Type -> Get
+	private static async executeCustomPostTypeGet(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const postTypeSlug = execFuncs.getNodeParameter('postTypeSlug', itemIndex, '') as string;
+		if (!postTypeSlug) {
+			throw new NodeOperationError(execFuncs.getNode(), 'Post Type Slug is required.', { itemIndex }); // Keep itemIndex here
+		}
+		const postId = execFuncs.getNodeParameter('postId', itemIndex, '') as string;
+		if (!postId) {
+			throw new NodeOperationError(execFuncs.getNode(), 'Post ID is required for Get operation.', { itemIndex }); // Keep itemIndex here
+		}
+
+		try {
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'GET', `/${postTypeSlug.trim()}/${postId}`);
+			return { json: response, pairedItem: itemIndex };
+		} catch (error) {
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
+			}
+			throw error;
+		}
+	}
+
+	// Handler for Custom Post Type -> Update
+	private static async executeCustomPostTypeUpdate(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const postTypeSlug = execFuncs.getNodeParameter('postTypeSlug', itemIndex, '') as string;
+		if (!postTypeSlug) {
+			throw new NodeOperationError(execFuncs.getNode(), 'Post Type Slug is required.', { itemIndex }); // Keep itemIndex here
+		}
+		const postId = execFuncs.getNodeParameter('postId', itemIndex, '') as string;
+		if (!postId) {
+			throw new NodeOperationError(execFuncs.getNode(), 'Post ID is required for Update operation.', { itemIndex }); // Keep itemIndex here
+		}
+
+		const body: any = {};
+		const title = execFuncs.getNodeParameter('title', itemIndex, null) as string | null;
+		const content = execFuncs.getNodeParameter('content', itemIndex, null) as string | null;
+		const status = execFuncs.getNodeParameter('status', itemIndex, null) as string | null;
+		const excerpt = execFuncs.getNodeParameter('excerpt', itemIndex, null) as string | null;
+		const customFieldsData = execFuncs.getNodeParameter('customFields', itemIndex, null) as Array<{ key?: string; value?: string }> | null;
+
+		if (title !== null) body.title = title;
+		if (content !== null) body.content = content;
+		if (status !== null) body.status = status;
+		if (excerpt !== null) body.excerpt = excerpt;
+
+		if (customFieldsData && customFieldsData.length > 0) {
+			body.meta = {};
+			for (const field of customFieldsData) {
+				if (field.key) {
+					body.meta[field.key] = field.value ?? '';
+				}
+			}
+		}
+
+		if (Object.keys(body).length === 0) {
+			const currentItem = execFuncs.getInputData(itemIndex)[0].json;
+			return { json: { message: "No fields provided to update for custom post type.", item: currentItem }, pairedItem: itemIndex };
+		}
+
+		try {
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'POST', `/${postTypeSlug.trim()}/${postId}`, body);
+			return { json: response, pairedItem: itemIndex };
+		} catch (error) {
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
+			}
+			throw error;
+		}
+	}
+
+	// Handler for Custom Post Type -> Delete
+	private static async executeCustomPostTypeDelete(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const postTypeSlug = execFuncs.getNodeParameter('postTypeSlug', itemIndex, '') as string;
+		if (!postTypeSlug) {
+			throw new NodeOperationError(execFuncs.getNode(), 'Post Type Slug is required.', { itemIndex }); // Keep itemIndex here
+		}
+		const postId = execFuncs.getNodeParameter('postId', itemIndex, '') as string;
+		if (!postId) {
+			throw new NodeOperationError(execFuncs.getNode(), 'Post ID is required for Delete operation.', { itemIndex }); // Keep itemIndex here
+		}
+
+		try {
+			await Wordpress.wordpressApiRequest(execFuncs, 'DELETE', `/${postTypeSlug.trim()}/${postId}?force=true`);
+			return { json: { message: `Custom Post Type item ${postId} (slug: ${postTypeSlug}) deleted permanently.` }, pairedItem: itemIndex };
+		} catch (error) {
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
+			}
+			throw error;
 		}
 	}
 
 	// Handler for Post -> Create
-	private async executePostCreate(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const title = this.getNodeParameter('title', itemIndex, '') as string;
-		const content = this.getNodeParameter('content', itemIndex, '') as string;
-		const status = this.getNodeParameter('status', itemIndex, 'publish') as string;
-		const excerpt = this.getNodeParameter('excerpt', itemIndex, '') as string;
-		const categoriesRaw = this.getNodeParameter('categories', itemIndex, '') as string;
-		const tagsRaw = this.getNodeParameter('tags', itemIndex, '') as string;
+	private static async executePostCreate(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const title = execFuncs.getNodeParameter('title', itemIndex, '') as string;
+		const content = execFuncs.getNodeParameter('content', itemIndex, '') as string;
+		const status = execFuncs.getNodeParameter('status', itemIndex, 'publish') as string;
+		const excerpt = execFuncs.getNodeParameter('excerpt', itemIndex, '') as string;
+		const categoriesRaw = execFuncs.getNodeParameter('categories', itemIndex, '') as string;
+		const tagsRaw = execFuncs.getNodeParameter('tags', itemIndex, '') as string;
 
-		const body: any = {
-			title,
-			content,
-			status,
-		};
+		const body: any = { title, content, status };
+		if (excerpt) body.excerpt = excerpt;
 
-		if (excerpt) {
-			body.excerpt = excerpt;
-		}
-
-		// WordPress API expects category and tag IDs.
-		// For simplicity, this initial implementation assumes IDs are provided.
-		// A more advanced version could lookup IDs by name.
 		if (categoriesRaw) {
 			body.categories = categoriesRaw.split(',').map(cat => parseInt(cat.trim(), 10)).filter(catId => !isNaN(catId));
 		}
@@ -814,48 +691,48 @@ export class Wordpress implements INodeType {
 		}
 
 		try {
-			const response = await this.wordpressApiRequest('POST', '/posts', body);
-			return { json: response, pairedItem: { itemIndex } };
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'POST', '/posts', body);
+			return { json: response, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
-			throw error; // Re-throw if not continuing on fail
+			throw error;
 		}
 	}
 
 	// Handler for Post -> Get
-	private async executePostGet(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const postId = this.getNodeParameter('postId', itemIndex, '') as string;
+	private static async executePostGet(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const postId = execFuncs.getNodeParameter('postId', itemIndex, '') as string;
 		if (!postId) {
-			throw new NodeOperationError(this.getNode(), 'Post ID is required for Get operation.', { itemIndex });
+			throw new NodeOperationError(execFuncs.getNode(), 'Post ID is required for Get operation.', { itemIndex }); // Keep itemIndex here
 		}
 
 		try {
-			const response = await this.wordpressApiRequest('GET', `/posts/${postId}`);
-			return { json: response, pairedItem: { itemIndex } };
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'GET', `/posts/${postId}`);
+			return { json: response, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
 			throw error;
 		}
 	}
 
 	// Handler for Post -> Update
-	private async executePostUpdate(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const postId = this.getNodeParameter('postId', itemIndex, '') as string;
+	private static async executePostUpdate(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const postId = execFuncs.getNodeParameter('postId', itemIndex, '') as string;
 		if (!postId) {
-			throw new NodeOperationError(this.getNode(), 'Post ID is required for Update operation.', { itemIndex });
+			throw new NodeOperationError(execFuncs.getNode(), 'Post ID is required for Update operation.', { itemIndex }); // Keep itemIndex here
 		}
 
 		const body: any = {};
-		const title = this.getNodeParameter('title', itemIndex, null) as string | null;
-		const content = this.getNodeParameter('content', itemIndex, null) as string | null;
-		const status = this.getNodeParameter('status', itemIndex, null) as string | null;
-		const excerpt = this.getNodeParameter('excerpt', itemIndex, null) as string | null;
-		const categoriesRaw = this.getNodeParameter('categories', itemIndex, null) as string | null;
-		const tagsRaw = this.getNodeParameter('tags', itemIndex, null) as string | null;
+		const title = execFuncs.getNodeParameter('title', itemIndex, null) as string | null;
+		const content = execFuncs.getNodeParameter('content', itemIndex, null) as string | null;
+		const status = execFuncs.getNodeParameter('status', itemIndex, null) as string | null;
+		const excerpt = execFuncs.getNodeParameter('excerpt', itemIndex, null) as string | null;
+		const categoriesRaw = execFuncs.getNodeParameter('categories', itemIndex, null) as string | null;
+		const tagsRaw = execFuncs.getNodeParameter('tags', itemIndex, null) as string | null;
 
 		if (title !== null) body.title = title;
 		if (content !== null) body.content = content;
@@ -870,154 +747,141 @@ export class Wordpress implements INodeType {
 		}
 
 		if (Object.keys(body).length === 0) {
-			// Nothing to update, maybe return current item or a message
-			const currentItem = this.getInputData(itemIndex)[0].json; // Or fetch fresh if necessary
-			return { json: { message: "No fields provided to update.", post: currentItem }, pairedItem: { itemIndex } };
+			const currentItem = execFuncs.getInputData(itemIndex)[0].json;
+			return { json: { message: "No fields provided to update.", post: currentItem }, pairedItem: itemIndex };
 		}
 
 		try {
-			// WordPress API uses POST for updates as well, or PUT
-			const response = await this.wordpressApiRequest('POST', `/posts/${postId}`, body);
-			return { json: response, pairedItem: { itemIndex } };
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'POST', `/posts/${postId}`, body);
+			return { json: response, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
 			throw error;
 		}
 	}
 
 	// Handler for Post -> Delete
-	private async executePostDelete(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const postId = this.getNodeParameter('postId', itemIndex, '') as string;
+	private static async executePostDelete(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const postId = execFuncs.getNodeParameter('postId', itemIndex, '') as string;
 		if (!postId) {
-			throw new NodeOperationError(this.getNode(), 'Post ID is required for Delete operation.', { itemIndex });
+			throw new NodeOperationError(execFuncs.getNode(), 'Post ID is required for Delete operation.', { itemIndex }); // Keep itemIndex here
 		}
 
 		try {
-			// The delete endpoint might require `force=true` to bypass trash, depending on WP settings.
-			// For now, we do a soft delete (to trash).
-			await this.wordpressApiRequest('DELETE', `/posts/${postId}`);
-			return { json: { message: `Post ${postId} deleted successfully (moved to trash).` }, pairedItem: { itemIndex } };
+			await Wordpress.wordpressApiRequest(execFuncs, 'DELETE', `/posts/${postId}`);
+			return { json: { message: `Post ${postId} deleted successfully (moved to trash).` }, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
 			throw error;
 		}
 	}
 
 	// Handler for Media -> Upload (Create)
-	private async executeMediaUpload(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const filePropertyName = this.getNodeParameter('file', itemIndex, '') as string;
-		const title = this.getNodeParameter('title', itemIndex, '') as string; // Title is often derived from filename by WP if not set
-		const altText = this.getNodeParameter('altText', itemIndex, '') as string;
-		const caption = this.getNodeParameter('caption', itemIndex, '') as string;
-		const description = this.getNodeParameter('description_media', itemIndex, '') as string; // Ensure this matches the property name
+	private static async executeMediaUpload(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const filePropertyName = execFuncs.getNodeParameter('file', itemIndex, '') as string;
+		const title = execFuncs.getNodeParameter('title', itemIndex, '') as string;
+		const altText = execFuncs.getNodeParameter('altText', itemIndex, '') as string;
+		const caption = execFuncs.getNodeParameter('caption', itemIndex, '') as string;
+		const description = execFuncs.getNodeParameter('description_media', itemIndex, '') as string;
 
 		if (!filePropertyName) {
-			throw new NodeOperationError(this.getNode(), 'File property name is required for Media Upload.', { itemIndex });
+			throw new NodeOperationError(execFuncs.getNode(), 'File property name is required for Media Upload.', { itemIndex }); // Keep itemIndex here
 		}
 
-		const binaryData = await this.helpers.getBinaryDataBuffer(itemIndex, filePropertyName);
-		const binaryDataDetails = this.helpers.assertBinaryData(itemIndex, filePropertyName);
-
+		const binaryData = await execFuncs.helpers.getBinaryDataBuffer(itemIndex, filePropertyName);
+		const binaryDataDetails = execFuncs.helpers.assertBinaryData(itemIndex, filePropertyName);
 
 		const formData: Record<string, any> = {
 			file: {
 				value: binaryData,
-				options: {
-					filename: binaryDataDetails.fileName, // Use the actual filename from binary data
-					contentType: binaryDataDetails.mimeType, // Use the actual mimeType
-				}
+				options: { filename: binaryDataDetails.fileName, contentType: binaryDataDetails.mimeType }
 			}
 		};
 
-		// WordPress uses these fields in the form data for media creation
 		if (title) formData.title = title;
-		if (altText) formData.alt_text = altText; // WP uses 'alt_text'
+		if (altText) formData.alt_text = altText;
 		if (caption) formData.caption = caption;
 		if (description) formData.description = description;
 
-
 		try {
-			// Using wordpressApiRequestBinary helper for multipart/form-data
-			const response = await this.wordpressApiRequestBinary('POST', '/media', formData);
-			return { json: response, pairedItem: { itemIndex } };
+			const response = await Wordpress.wordpressApiRequestBinary(execFuncs, 'POST', '/media', formData);
+			return { json: response, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
 			throw error;
 		}
 	}
 
 	// Handler for Media -> Get
-	private async executeMediaGet(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const mediaId = this.getNodeParameter('mediaId', itemIndex, '') as string;
+	private static async executeMediaGet(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const mediaId = execFuncs.getNodeParameter('mediaId', itemIndex, '') as string;
 		if (!mediaId) {
-			throw new NodeOperationError(this.getNode(), 'Media ID is required for Get operation.', { itemIndex });
+			throw new NodeOperationError(execFuncs.getNode(), 'Media ID is required for Get operation.', { itemIndex }); // Keep itemIndex here
 		}
 		try {
-			const response = await this.wordpressApiRequest('GET', `/media/${mediaId}`);
-			return { json: response, pairedItem: { itemIndex } };
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'GET', `/media/${mediaId}`);
+			return { json: response, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
 			throw error;
 		}
 	}
 
 	// Handler for Media -> Update
-	private async executeMediaUpdate(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const mediaId = this.getNodeParameter('mediaId', itemIndex, '') as string;
+	private static async executeMediaUpdate(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const mediaId = execFuncs.getNodeParameter('mediaId', itemIndex, '') as string;
 		if (!mediaId) {
-			throw new NodeOperationError(this.getNode(), 'Media ID is required for Update operation.', { itemIndex });
+			throw new NodeOperationError(execFuncs.getNode(), 'Media ID is required for Update operation.', { itemIndex }); // Keep itemIndex here
 		}
 
 		const body: any = {};
-		const title = this.getNodeParameter('title', itemIndex, null) as string | null;
-		const altText = this.getNodeParameter('altText', itemIndex, null) as string | null;
-		const caption = this.getNodeParameter('caption', itemIndex, null) as string | null;
-		const description = this.getNodeParameter('description_media', itemIndex, null) as string | null;
+		const title = execFuncs.getNodeParameter('title', itemIndex, null) as string | null;
+		const altText = execFuncs.getNodeParameter('altText', itemIndex, null) as string | null;
+		const caption = execFuncs.getNodeParameter('caption', itemIndex, null) as string | null;
+		const description = execFuncs.getNodeParameter('description_media', itemIndex, null) as string | null;
 
 		if (title !== null) body.title = title;
-		if (altText !== null) body.alt_text = altText; // WP uses 'alt_text'
+		if (altText !== null) body.alt_text = altText;
 		if (caption !== null) body.caption = caption;
 		if (description !== null) body.description = description;
 
 		if (Object.keys(body).length === 0) {
-			const currentItem = this.getInputData(itemIndex)[0].json;
-			return { json: { message: "No fields provided to update for media.", item: currentItem }, pairedItem: { itemIndex } };
+			const currentItem = execFuncs.getInputData(itemIndex)[0].json;
+			return { json: { message: "No fields provided to update for media.", item: currentItem }, pairedItem: itemIndex };
 		}
 
 		try {
-			// WordPress API uses POST for media updates
-			const response = await this.wordpressApiRequest('POST', `/media/${mediaId}`, body);
-			return { json: response, pairedItem: { itemIndex } };
+			const response = await Wordpress.wordpressApiRequest(execFuncs, 'POST', `/media/${mediaId}`, body);
+			return { json: response, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
 			throw error;
 		}
 	}
 
 	// Handler for Media -> Delete
-	private async executeMediaDelete(this: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
-		const mediaId = this.getNodeParameter('mediaId', itemIndex, '') as string;
+	private static async executeMediaDelete(execFuncs: IExecuteFunctions, itemIndex: number): Promise<INodeExecutionData> {
+		const mediaId = execFuncs.getNodeParameter('mediaId', itemIndex, '') as string;
 		if (!mediaId) {
-			throw new NodeOperationError(this.getNode(), 'Media ID is required for Delete operation.', { itemIndex });
+			throw new NodeOperationError(execFuncs.getNode(), 'Media ID is required for Delete operation.', { itemIndex }); // Keep itemIndex here
 		}
 
 		try {
-			// `force=true` for permanent deletion. Omit or set to false to move to trash.
-			await this.wordpressApiRequest('DELETE', `/media/${mediaId}?force=true`);
-			return { json: { message: `Media item ${mediaId} deleted permanently.` }, pairedItem: { itemIndex } };
+			await Wordpress.wordpressApiRequest(execFuncs, 'DELETE', `/media/${mediaId}?force=true`);
+			return { json: { message: `Media item ${mediaId} deleted permanently.` }, pairedItem: itemIndex };
 		} catch (error) {
-			if (this.continueOnFail()) {
-				return { json: { error: error.message }, pairedItem: { itemIndex }, error };
+			if (execFuncs.continueOnFail()) {
+				return { json: { error: error.message }, pairedItem: itemIndex, error };
 			}
 			throw error;
 		}
@@ -1027,7 +891,7 @@ export class Wordpress implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
-		let responseData;
+		let responseData: INodeExecutionData;
 
 		const resource = this.getNodeParameter('resource', 0, 'post') as string;
 		const operation = this.getNodeParameter('operation', 0, 'getAll') as string;
@@ -1036,46 +900,47 @@ export class Wordpress implements INodeType {
 			try {
 				if (resource === 'post') {
 					if (operation === 'create') {
-						responseData = await this.executePostCreate(i);
+						responseData = await Wordpress.executePostCreate(this, i);
 					} else if (operation === 'get') {
-						responseData = await this.executePostGet(i);
+						responseData = await Wordpress.executePostGet(this, i);
 					} else if (operation === 'update') {
-						responseData = await this.executePostUpdate(i);
+						responseData = await Wordpress.executePostUpdate(this, i);
 					} else if (operation === 'delete') {
-						responseData = await this.executePostDelete(i);
+						responseData = await Wordpress.executePostDelete(this, i);
 					} else {
 						throw new NodeOperationError(this.getNode(), `Operation '${operation}' for resource 'Post' is not yet implemented.`, { itemIndex: i });
 					}
 				} else if (resource === 'media') {
-					if (operation === 'upload') { // 'upload' is the create operation for media
-						responseData = await this.executeMediaUpload(i);
+					if (operation === 'upload') {
+						responseData = await Wordpress.executeMediaUpload(this, i);
 					} else if (operation === 'get') {
-						responseData = await this.executeMediaGet(i);
+						responseData = await Wordpress.executeMediaGet(this, i);
 					} else if (operation === 'update') {
-						responseData = await this.executeMediaUpdate(i);
+						responseData = await Wordpress.executeMediaUpdate(this, i);
 					} else if (operation === 'delete') {
-						responseData = await this.executeMediaDelete(i);
+						responseData = await Wordpress.executeMediaDelete(this, i);
 					} else {
 						throw new NodeOperationError(this.getNode(), `Operation '${operation}' for resource 'Media' is not yet implemented.`, { itemIndex: i });
 					}
 				} else if (resource === 'customPostType') {
 					if (operation === 'create') {
-						responseData = await this.executeCustomPostTypeCreate(i);
+						responseData = await Wordpress.executeCustomPostTypeCreate(this, i);
 					} else if (operation === 'get') {
-						responseData = await this.executeCustomPostTypeGet(i);
+						responseData = await Wordpress.executeCustomPostTypeGet(this, i);
 					} else if (operation === 'update') {
-						responseData = await this.executeCustomPostTypeUpdate(i);
+						responseData = await Wordpress.executeCustomPostTypeUpdate(this, i);
 					} else if (operation === 'delete') {
-						responseData = await this.executeCustomPostTypeDelete(i);
+						responseData = await Wordpress.executeCustomPostTypeDelete(this, i);
 					} else {
 						throw new NodeOperationError(this.getNode(), `Operation '${operation}' for resource 'Custom Post Type' is not yet implemented.`, { itemIndex: i });
 					}
 				} else {
 					throw new NodeOperationError(this.getNode(), `Resource '${resource}' is not recognized.`, { itemIndex: i });
 				}
+				returnData.push(responseData);
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ json: { error: error.message }, pairedItem: { itemIndex: i }, error });
+					returnData.push({ json: { error: error.message }, error, pairedItem: i });
 					continue;
 				}
 				throw error;

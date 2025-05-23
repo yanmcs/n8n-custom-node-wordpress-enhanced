@@ -1,4 +1,4 @@
-import { INodeExecutionData, IExecuteFunctions, NodeOperationError } from 'n8n-workflow';
+import { INodeExecutionData, IExecuteFunctions } from 'n8n-workflow'; // Removed NodeOperationError
 import { Wordpress } from './Wordpress.node';
 
 // Mock IExecuteFunctions
@@ -352,5 +352,131 @@ describe('Wordpress Node', () => {
 			}));
 		});
 	});
-	// TODO: Add describe blocks for Custom Post Type Resource
+
+	describe('Custom Post Type Resource', () => {
+		const mockWordPressCredentials = {
+			url: 'https://example.com',
+			username: 'testuser',
+			password: 'testpassword',
+		};
+		const postTypeSlug = 'movie';
+		const customPostId = 'cpt-id-123';
+
+		it('should create a custom post type item successfully', async () => {
+			(execFunctions.getNodeParameter as jest.Mock)
+				.mockReturnValueOnce('customPostType') // resource
+				.mockReturnValueOnce('create') // operation
+				.mockReturnValueOnce(postTypeSlug) // postTypeSlug
+				.mockReturnValueOnce('Awesome Movie Title') // title
+				.mockReturnValueOnce('<p>Great movie content.</p>') // content
+				.mockReturnValueOnce('publish') // status
+				.mockReturnValueOnce('Short excerpt about movie') // excerpt
+				.mockReturnValueOnce({ // customFields
+					properties: [
+						{ key: 'director', value: 'Jane Doe' },
+						{ key: 'year', value: '2023' },
+						{ key: '', value: 'should be ignored'}, // empty key
+						{ key: 'rating', value: ''}, // empty value
+					],
+				});
+
+			(execFunctions.getCredentials as jest.Mock).mockResolvedValue(mockWordPressCredentials);
+
+			const mockCptResponse = {
+				id: customPostId,
+				slug: postTypeSlug,
+				title: { rendered: 'Awesome Movie Title' },
+				content: { rendered: '<p>Great movie content.</p>' },
+				status: 'publish',
+				meta: { director: 'Jane Doe', year: '2023', rating: '' },
+			};
+			(execFunctions.helpers.httpRequest as jest.Mock).mockResolvedValue(mockCptResponse);
+
+			const result = await wordpressNode.execute.call(execFunctions);
+
+			expect(result[0][0].json).toEqual(mockCptResponse);
+			expect(execFunctions.helpers.httpRequest).toHaveBeenCalledTimes(1);
+			expect(execFunctions.helpers.httpRequest).toHaveBeenCalledWith(expect.objectContaining({
+				method: 'POST',
+				baseURL: `${mockWordPressCredentials.url}/wp-json/wp/v2`,
+				url: `/${postTypeSlug}`,
+				body: {
+					title: 'Awesome Movie Title',
+					content: '<p>Great movie content.</p>',
+					status: 'publish',
+					excerpt: 'Short excerpt about movie',
+					meta: { director: 'Jane Doe', year: '2023', rating: '' },
+				},
+				headers: expect.objectContaining({ 'Authorization': expect.stringContaining('Basic ') }),
+			}));
+		});
+
+		it('should get a custom post type item successfully', async () => {
+			(execFunctions.getNodeParameter as jest.Mock)
+				.mockReturnValueOnce('customPostType')
+				.mockReturnValueOnce('get')
+				.mockReturnValueOnce(postTypeSlug)
+				.mockReturnValueOnce(customPostId);
+			(execFunctions.getCredentials as jest.Mock).mockResolvedValue(mockWordPressCredentials);
+
+			const mockGetResponse = { id: customPostId, slug: postTypeSlug, title: { rendered: 'Fetched CPT' } };
+			(execFunctions.helpers.httpRequest as jest.Mock).mockResolvedValue(mockGetResponse);
+
+			const result = await wordpressNode.execute.call(execFunctions);
+			expect(result[0][0].json).toEqual(mockGetResponse);
+			expect(execFunctions.helpers.httpRequest).toHaveBeenCalledWith(expect.objectContaining({
+				method: 'GET',
+				url: `/${postTypeSlug}/${customPostId}`,
+			}));
+		});
+
+		it('should update a custom post type item successfully', async () => {
+			const updatedTitle = 'Updated CPT Title';
+			const updatedCustomFields = {
+				properties: [{ key: 'director', value: 'John Smith' }],
+			};
+
+			(execFunctions.getNodeParameter as jest.Mock)
+				.mockReturnValueOnce('customPostType')
+				.mockReturnValueOnce('update')
+				.mockReturnValueOnce(postTypeSlug)
+				.mockReturnValueOnce(customPostId)
+				.mockReturnValueOnce(updatedTitle) // title
+				.mockReturnValueOnce(null) // content
+				.mockReturnValueOnce(null) // status
+				.mockReturnValueOnce(null) // excerpt
+				.mockReturnValueOnce(updatedCustomFields); // customFields
+
+			(execFunctions.getCredentials as jest.Mock).mockResolvedValue(mockWordPressCredentials);
+
+			const mockUpdateResponse = { id: customPostId, title: { rendered: updatedTitle }, meta: { director: 'John Smith' } };
+			(execFunctions.helpers.httpRequest as jest.Mock).mockResolvedValue(mockUpdateResponse);
+
+			const result = await wordpressNode.execute.call(execFunctions);
+			expect(result[0][0].json).toEqual(mockUpdateResponse);
+			expect(execFunctions.helpers.httpRequest).toHaveBeenCalledWith(expect.objectContaining({
+				method: 'POST',
+				url: `/${postTypeSlug}/${customPostId}`,
+				body: { title: updatedTitle, meta: { director: 'John Smith' } },
+			}));
+		});
+
+		it('should delete a custom post type item successfully', async () => {
+			(execFunctions.getNodeParameter as jest.Mock)
+				.mockReturnValueOnce('customPostType')
+				.mockReturnValueOnce('delete')
+				.mockReturnValueOnce(postTypeSlug)
+				.mockReturnValueOnce(customPostId);
+			(execFunctions.getCredentials as jest.Mock).mockResolvedValue(mockWordPressCredentials);
+
+			(execFunctions.helpers.httpRequest as jest.Mock).mockResolvedValue({}); // Empty object for successful no-content like response
+
+			const result = await wordpressNode.execute.call(execFunctions);
+			expect(result[0][0].json).toEqual({ message: `Custom Post Type item ${customPostId} (slug: ${postTypeSlug}) deleted permanently.` });
+			expect(execFunctions.helpers.httpRequest).toHaveBeenCalledWith(expect.objectContaining({
+				method: 'DELETE',
+				url: `/${postTypeSlug}/${customPostId}?force=true`,
+			}));
+		});
+	});
 });
