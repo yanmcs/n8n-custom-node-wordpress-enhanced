@@ -1,19 +1,19 @@
 {
-  "name": "n8n-nodes-<...>",
+  "name": "n8n-nodes-wordpress-enhanced",
   "version": "0.1.0",
   "description": "",
   "keywords": [
     "n8n-community-node-package"
   ],
   "license": "MIT",
-  "homepage": "",
+  "homepage": "https://github.com/yanmcs/n8n-custom-node-wordpress-enhanced",
   "author": {
     "name": "",
     "email": ""
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/<...>/n8n-nodes-<...>.git"
+    "url": "https://github.com/yanmcs/n8n-custom-node-wordpress-enhanced.git"
   },
   "engines": {
     "node": ">=20.15"
